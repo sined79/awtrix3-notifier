@@ -285,7 +285,7 @@ async function handleSubmit(e) {
 }
 
 async function sendNotification(data) {
-  const url = `http://${appState.clockIp}/api/notify`;
+  const url = `${appState.clockIp}/api/notify`;
   
   // Prepare payload
   const payload = {
@@ -420,7 +420,7 @@ async function testConnection() {
   updateConnectionStatus('testing');
   
   try {
-    const url = `http://${appState.clockIp}/api/stats`;
+    const url = `${appState.clockIp}/api/stats`;
     const response = await fetch(url, {
       method: 'GET',
       signal: AbortSignal.timeout(5000)
