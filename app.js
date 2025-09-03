@@ -80,11 +80,11 @@ const elements = {
 
 // Initialisation de l'application
 document.addEventListener('DOMContentLoaded', function() {
+  initPWA();
   initApp();
   setupEventListeners();
   populateFormData();
   loadSettings();
-  initPWA();
 });
 
 function initApp() {
@@ -508,10 +508,11 @@ function showToast(type, message, duration = 5000) {
 
 
 // Variable pour stocker l'événement d'installation PWA
-let deferredPrompt;
+let deferredPrompt = null;
 
 // Fonction d'initialisation PWA
 function initPWA() {
+  console.log("1");
     // Enregistrement du service worker
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
@@ -542,13 +543,14 @@ function initPWA() {
 }
 
 function showInstallButton() {
+    console.log("2");
     // Créer le bouton d'installation s'il n'existe pas
     let installBtn = document.getElementById('installBtn');
     if (!installBtn) {
         installBtn = document.createElement('button');
         installBtn.id = 'installBtn';
         installBtn.className = 'btn btn--primary install-btn';
-        installBtn.innerHTML = '📱 Installer l\'app';
+        installBtn.innerHTML = '📱 Installer l\'apps';
         installBtn.style.cssText = `
             position: fixed;
             bottom: 20px;
@@ -589,6 +591,7 @@ function showInstallButton() {
 }
 
 function hideInstallButton() {
+  console.log("3");
     const installBtn = document.getElementById('installBtn');
     if (installBtn) {
         installBtn.style.display = 'none';
@@ -597,6 +600,7 @@ function hideInstallButton() {
 
 // Fonction pour détecter si l'app est déjà installée (iOS Safari)
 function isStandalone() {
+  console.log("4");
     return window.matchMedia('(display-mode: standalone)').matches || 
            window.navigator.standalone === true;
 }
