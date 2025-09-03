@@ -1,4 +1,4 @@
-const CACHE_NAME = 'awtrix-notifier-v1.0.3';
+const CACHE_NAME = 'awtrix-notifier-v1.0.5';
 
 // Installation
 self.addEventListener('install', (event) => {
