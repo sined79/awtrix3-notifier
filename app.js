@@ -36,9 +36,6 @@ let appState = {
   history: []
 };
 
-
-const deferredPrompt = null;
-
 // Éléments DOM
 const elements = {
   // Navigation
@@ -510,80 +507,101 @@ function showToast(type, message, duration = 5000) {
 }
 
 
+// Variable pour stocker l'événement d'installation PWA
+let deferredPrompt;
+
+// Fonction d'initialisation PWA
 function initPWA() {
-        // Détection mobile plus robuste
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                        (navigator.maxTouchPoints && navigator.maxTouchPoints > 2 && /MacIntel/.test(navigator.platform));
-        
-        if (!isMobile) {
-            console.log('PWA: Desktop détecté, pas de bouton d\'installation');
-            return;
-        }
-
-        // Service worker...
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then((registration) => {
-                        console.log('SW enregistré:', registration.scope);
-                    })
-                    .catch((error) => {
-                        console.log('Échec SW:', error);
-                    });
-            });
-        }
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('PWA: beforeinstallprompt détecté sur mobile');
-            e.preventDefault();
-            deferredPrompt = e;
-            showInstallButton();
+    // Enregistrement du service worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then((registration) => {
+                    console.log('SW: Enregistré avec succès', registration.scope);
+                })
+                .catch((error) => {
+                    console.log('SW: Échec enregistrement', error);
+                });
         });
-
-        // Force l'affichage du bouton après un délai sur mobile si PWA possible
-        setTimeout(() => {
-            if (deferredPrompt || isPWAInstallable()) {
-                showInstallButton();
-            }
-        }, 3000);
     }
 
-function isPWAInstallable() {
-        // Vérifications supplémentaires pour PWA
-        return 'serviceWorker' in navigator && 
-            window.matchMedia('(display-mode: browser)').matches &&
-            !window.matchMedia('(display-mode: standalone)').matches;
-    }
+    // Gestion de l'installation PWA
+    window.addEventListener('beforeinstallprompt', (e) => {
+        console.log('PWA: Installation disponible');
+        e.preventDefault();
+        deferredPrompt = e;
+        showInstallButton();
+    });
+
+    // Détection si l'app est installée
+    window.addEventListener('appinstalled', () => {
+        console.log('PWA: Installation réussie!');
+        hideInstallButton();
+        showToast('Application installée avec succès!', 'success');
+    });
+}
 
 function showInstallButton() {
-        if (!document.getElementById('installBtn')) {
-            const installBtn = document.createElement('button');
-            installBtn.id = 'installBtn';
-            installBtn.className = 'btn btn--primary install-btn show';
-            installBtn.innerHTML = '📱 Installer l\'app';
-            installBtn.addEventListener('click', promptInstall.bind(this));
-            document.body.appendChild(installBtn);
-            console.log('Bouton PWA affiché');
-        }
+    // Créer le bouton d'installation s'il n'existe pas
+    let installBtn = document.getElementById('installBtn');
+    if (!installBtn) {
+        installBtn = document.createElement('button');
+        installBtn.id = 'installBtn';
+        installBtn.className = 'btn btn--primary install-btn';
+        installBtn.innerHTML = '📱 Installer l\'app';
+        installBtn.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            border-radius: 25px;
+            padding: 10px 16px;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        `;
+        document.body.appendChild(installBtn);
     }
 
-function promptInstall() {
-        console.log('Prompt d\'installation PWA');
-        console.log('deferredPrompt disponible:', !!deferredPrompt); // Debug
-        
-        if (deferredPrompt) { // Utiliser deferredPrompt au lieu de window.deferredPrompt
+    installBtn.style.display = 'block';
+    
+    // Gérer le clic sur le bouton d'installation
+    installBtn.addEventListener('click', async () => {
+        if (deferredPrompt) {
+            installBtn.style.display = 'none';
             deferredPrompt.prompt();
-            deferredPrompt.userChoice.then((choiceResult) => {
-                console.log('Choix utilisateur:', choiceResult.outcome);
-                if (choiceResult.outcome === 'accepted') {
-                    console.log('Installation acceptée');
-                }
-                deferredPrompt = null; // Nettoyer après utilisation
-            });
-        } else {
-            console.log('deferredPrompt non disponible - PWA peut-être déjà installée');
+            
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log('PWA: Réponse utilisateur:', outcome);
+            
+            if (outcome === 'accepted') {
+                showToast('Installation en cours...', 'info');
+            } else {
+                showToast('Installation annulée', 'warning');
+                // Réafficher le bouton après un délai
+                setTimeout(() => {
+                    installBtn.style.display = 'block';
+                }, 3000);
+            }
+            
+            deferredPrompt = null;
         }
+    });
+}
+
+function hideInstallButton() {
+    const installBtn = document.getElementById('installBtn');
+    if (installBtn) {
+        installBtn.style.display = 'none';
     }
+}
+
+// Fonction pour détecter si l'app est déjà installée (iOS Safari)
+function isStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches || 
+           window.navigator.standalone === true;
+}
+
+
 // Expose global functions for onclick handlers
 window.reuseNotification = reuseNotification;
 window.deleteHistoryItem = deleteHistoryItem;
