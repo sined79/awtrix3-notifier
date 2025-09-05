@@ -1,23 +1,27 @@
-const CACHE_NAME = 'awtrix-notifier-v1.0.8';
-const urlsToCache = [
-    './',
-    './index.html',
-    './style.css',
-    './app.js',
-    './manifest.json',
-    './icons/icon-192x192.png'
-];
+const CACHE_NAME = 'awtrix-notifier-v1.0.10';
 
-// Installation avec précache
+// Installation
 self.addEventListener('install', (event) => {
     console.log('SW: Installation nouvelle version');
+    self.skipWaiting(); // Force la mise à jour immédiate
+});
+
+// Activation - nettoie les anciens caches
+self.addEventListener('activate', (event) => {
+    console.log('SW: Activation');
     event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then((cache) => {
-                console.log('SW: Précache des ressources');
-                return cache.addAll(urlsToCache);
-            })
-            .then(() => self.skipWaiting())
+        caches.keys().then((cacheNames) => {
+            return Promise.all(
+                cacheNames.map((cacheName) => {
+                    if (cacheName !== CACHE_NAME) {
+                        console.log('SW: Suppression ancien cache', cacheName);
+                        return caches.delete(cacheName);
+                    }
+                })
+            );
+        }).then(() => {
+            return self.clients.claim();
+        })
     );
 });
 

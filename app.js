@@ -32,6 +32,8 @@ const appData = {
 let appState = {
   currentTab: 'notification',
   clockIp: appData.defaultIp,
+  login: '',
+  password: '',
   isConnected: false,
   history: []
 };
@@ -68,6 +70,8 @@ const elements = {
   
   // Réglages
   clockIp: document.getElementById('clockIp'),
+  login: document.getElementById('login'), 
+  password: document.getElementById('password'), 
   testConnectionBtn: document.getElementById('testConnectionBtn'),
   
   // Status
@@ -115,6 +119,8 @@ function setupEventListeners() {
   
   // Réglages
   elements.clockIp.addEventListener('change', saveSettings);
+  elements.login.addEventListener('change', saveSettings); 
+  elements.password.addEventListener('change', saveSettings);
   elements.testConnectionBtn.addEventListener('click', testConnection);
   
   // Historique
@@ -134,17 +140,26 @@ function populateFormData() {
   
   // Populate color palette
   elements.colorPalette.innerHTML = appData.colors.map(color => 
-    `<div class="color-option ${color.hex === 'FFFFFF' ? 'selected' : ''}" 
-          data-color="${color.hex}" 
-          style="background-color: #${color.hex};"
-          title="${color.name}">
-     </div>`
+      `<div class="color-option" 
+            style="background-color: #${color.hex};" 
+            data-color="${color.hex}" 
+            title="${color.name}">
+        </div>`
   ).join('');
-  
-  // Event listeners for color selection
-  document.querySelectorAll('.color-option').forEach(option => {
-    option.addEventListener('click', () => selectColor(option.dataset.color));
+
+  // Ajouter les event listeners pour les couleurs
+  document.querySelectorAll('.color-option').forEach(colorOption => {
+      colorOption.addEventListener('click', () => {
+          const hexColor = colorOption.dataset.color;
+          selectColor(colorOption, hexColor);
+      });
   });
+
+  // Sélectionner la première couleur par défaut
+  const firstColor = document.querySelector('.color-option');
+  if (firstColor) {
+      selectColor(firstColor, firstColor.dataset.color);
+  }
 }
 
 function switchTab(tabName) {
@@ -219,6 +234,35 @@ function getSoundName(soundId) {
   return sound ? sound.name : soundId;
 }
 
+// Fonction pour récupérer la couleur sélectionnée
+// Version simple de getSelectedColor
+function getSelectedColor() {
+    const selectedColorOption = document.querySelector('.color-option.selected');
+    if (selectedColorOption) {
+        return selectedColorOption.dataset.color || 'FFFFFF';
+    }
+    return 'FFFFFF'; // Blanc par défaut
+}
+
+
+// Fonction pour sélectionner une couleur
+function selectColor(colorElement, hexColor) {
+    // Désélectionner toutes les couleurs
+    document.querySelectorAll('.color-option').forEach(option => {
+        option.classList.remove('selected');
+    });
+    
+    // Sélectionner la couleur cliquée
+    colorElement.classList.add('selected');
+    
+    // Mettre à jour l'affichage de la couleur sélectionnée
+    if (elements.selectedColor) {
+        elements.selectedColor.style.backgroundColor = `#${hexColor}`;
+        elements.selectedColor.textContent = `#${hexColor}`;
+    }
+}
+
+
 function getEffectName(effectId) {
   const effect = appData.effects.find(e => e.id === effectId);
   return effect ? effect.name : effectId;
@@ -245,74 +289,138 @@ function validateForm(formData) {
   return errors;
 }
 
-async function handleSubmit(e) {
-  e.preventDefault();
-  
-  const formData = getFormData();
-  const errors = validateForm(formData);
-  
-  if (errors.length > 0) {
-    showToast('error', errors.join('<br>'));
-    return;
-  }
-  
-  // Show loading state
-  setButtonLoading(elements.sendBtn, true);
-  
-  try {
-    await sendNotification(formData);
+function handleSubmit(e) {
+    e.preventDefault();
     
-    // Add to history
-    addToHistory(formData);
+    if (!elements.message.value.trim()) {
+        showToast('Le message ne peut pas être vide', 'error');
+        return;
+    }
     
-    // Show success message
-    showToast('success', 'Notification envoyée avec succès !');
+    // Préparer les données de notification
+    const notificationData = {
+        text: elements.message.value,
+        color: getSelectedColor(),
+    };
     
-    // Clear form
-    elements.form.reset();
-    elements.selectedColor.value = 'FFFFFF';
-    selectColor('FFFFFF');
-    updateCharCount();
-    updateSliderValue();
-    elements.previewCard.classList.add('hidden');
+    // Ajouter les options si définies
+    if (elements.sound.value) {
+        notificationData.sound = elements.sound.value;
+    }
     
-  } catch (error) {
-    console.error('Erreur lors de l\'envoi:', error);
-    showToast('error', 'Erreur lors de l\'envoi. Vérifiez la connexion et essayez le VPN si nécessaire.');
-  } finally {
-    setButtonLoading(elements.sendBtn, false);
-  }
+    if (elements.icon.value) {
+        notificationData.icon = elements.icon.value;
+    }
+    
+    if (elements.effect.value) {
+        notificationData.effect = elements.effect.value;
+    }
+    
+    const repeatValue = parseInt(elements.repeat.value);
+    if (repeatValue > 1) {
+        notificationData.repeat = repeatValue;
+    }
+    
+    // Désactiver le bouton d'envoi
+    elements.sendBtn.disabled = true;
+    elements.sendBtn.textContent = 'Envoi en cours...';
+    
+    // Envoyer la notification
+    sendNotification(notificationData)
+        .then(() => {
+            showToast('Notification envoyée avec succès !', 'success');
+            addToHistory(notificationData);
+            resetForm();
+        })
+        .catch((error) => {
+            if (error.message.includes('401')) {
+                showToast('Erreur d\'authentification - Vérifiez vos identifiants dans les réglages', 'error');
+            } else {
+                showToast(`Erreur lors de l'envoi: ${error.message}`, 'error');
+            }
+        })
+        .finally(() => {
+            // Réactiver le bouton
+            elements.sendBtn.disabled = false;
+            elements.sendBtn.textContent = 'Envoyer la notification';
+        });
 }
 
-async function sendNotification(data) {
-  const url = `${appState.clockIp}/api/notify`;
-  
-  // Prepare payload
-  const payload = {
-    text: data.text
-  };
-  
-  if (data.color) payload.color = data.color;
-  if (data.sound) payload.sound = data.sound;
-  if (data.icon) payload.icon = data.icon;
-  if (data.effect) payload.effect = data.effect;
-  if (data.repeat > 1) payload.repeat = data.repeat;
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(5000)
-  });
-  
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-  
-  return response.json();
+function sendNotification(notificationData) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const url = `${appState.clockIp}/api/notify`;
+        
+        console.log('🚀 Tentative avec XMLHttpRequest...');
+        
+        xhr.open('POST', url, true);
+        
+        // Headers exactement comme curl
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        
+        const authHeader = createAuthHeader(appState.login, appState.password);
+        if (authHeader) {
+            xhr.setRequestHeader('Authorization', authHeader);
+            console.log('🔑 Auth header:', authHeader);
+        }
+        
+        xhr.onload = function() {
+            console.log('📡 XHR Status:', xhr.status);
+            console.log('📡 XHR Response:', xhr.responseText);
+            
+            if (xhr.status >= 200 && xhr.status < 300) {
+                resolve(xhr.responseText);
+            } else {
+                reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText}`));
+            }
+        };
+        
+        xhr.onerror = function() {
+            console.log('❌ XHR Network Error');
+            reject(new Error('Erreur réseau XHR'));
+        };
+        
+        xhr.ontimeout = function() {
+            console.log('⏰ XHR Timeout');
+            reject(new Error('Timeout XHR'));
+        };
+        
+        // Timeout de 10 secondes
+        xhr.timeout = 10000;
+        
+        const jsonData = JSON.stringify(notificationData);
+        console.log('📤 Envoi XHR:', jsonData);
+        xhr.send(jsonData);
+    });
 }
+
+
+
+function encodeBasicAuth(login, password) {
+    const credentials = `${login}:${password}`;
+    return btoa(credentials); // btoa() encode en base64
+}
+
+// Fonction pour créer le header Authorization
+function createAuthHeader(login, password) {
+    if (!login || !password) {
+        console.log('❌ Pas de credentials fournis');
+        return null;
+    }
+    
+    const credentials = `${login}:${password}`;
+    const base64Auth = btoa(credentials);
+    const authHeader = `Basic ${base64Auth}`;
+    
+    console.log('🔑 Login:', login);
+    console.log('🔑 Password:', password.replace(/./g, '*')); // Masquer le mot de passe
+    console.log('🔑 Credentials string:', credentials);
+    console.log('🔑 Base64 encoded:', base64Auth);
+    console.log('🔑 Auth header:', authHeader);
+    
+    return authHeader;
+}
+
 
 function addToHistory(data) {
   const historyItem = {
@@ -407,40 +515,75 @@ function clearHistory() {
 
 function saveSettings() {
   appState.clockIp = elements.clockIp.value.trim() || appData.defaultIp;
+  appState.login = elements.login.value; 
+  appState.password = elements.password.value;
+
+  localStorage.setItem('clockSettings', JSON.stringify({
+      ip: appState.clockIp,
+      login: appState.login, 
+      password: appState.password
+  }));
+
   elements.clockIp.value = appState.clockIp;
-  showToast('info', 'IP sauvegardée');
+  showToast('Paramètres sauvegardés', 'success');
 }
 
 function loadSettings() {
-  elements.clockIp.value = appState.clockIp;
+  const settings = localStorage.getItem('clockSettings');
+  if (settings) {
+      const parsed = JSON.parse(settings);
+      appState.clockIp = parsed.ip || appData.defaultIp;
+      appState.login = parsed.login || ''; // NOUVEAU
+      appState.password = parsed.password || ''; // NOUVEAU
+      
+      elements.clockIp.value = appState.clockIp;
+      elements.login.value = appState.login; // NOUVEAU
+      elements.password.value = appState.password; // NOUVEAU
+  }
 }
 
-async function testConnection() {
-  setButtonLoading(elements.testConnectionBtn, true);
-  updateConnectionStatus('testing');
+function testConnection() {
+  const testBtn = elements.testConnectionBtn;
+  const statusIndicator = elements.statusIndicator;
+  const statusText = elements.statusText;
   
-  try {
-    const url = `${appState.clockIp}/api/stats`;
-    const response = await fetch(url, {
-      method: 'GET',
-      signal: AbortSignal.timeout(5000)
-    });
-    
-    if (response.ok) {
-      updateConnectionStatus('connected');
-      showToast('success', 'Connexion réussie !');
-    } else {
-      throw new Error('Réponse invalide');
-    }
-  } catch (error) {
-    updateConnectionStatus('disconnected');
-    showToast('error', 
-      'Impossible de se connecter à l\'horloge.<br>' +
-      'Vérifiez l\'IP et activez le VPN WireGuard si nécessaire.'
-    );
-  } finally {
-    setButtonLoading(elements.testConnectionBtn, false);
-  }
+  // Changer l'état en "test en cours"
+  testBtn.disabled = true;
+  testBtn.textContent = 'Test en cours...';
+  statusIndicator.className = 'status-indicator testing';
+  statusText.textContent = 'Test de connexion...';
+  
+  // Données de test
+  const testData = {
+      text: "Test connexion",
+      color: "00FF00" // Vert
+  };
+  
+  sendNotification(testData)
+      .then(() => {
+          // Connexion réussie
+          appState.isConnected = true;
+          statusIndicator.className = 'status-indicator connected';
+          statusText.textContent = 'Connecté';
+          showToast('Connexion réussie !', 'success');
+      })
+      .catch((error) => {
+          // Erreur de connexion
+          appState.isConnected = false;
+          statusIndicator.className = 'status-indicator';
+          statusText.textContent = 'Déconnecté';
+          
+          if (error.message.includes('401')) {
+              showToast('Erreur d\'authentification (401) - Vérifiez vos identifiants', 'error');
+          } else {
+              showToast(`Erreur de connexion: ${error.message}`, 'error');
+          }
+      })
+      .finally(() => {
+          // Remettre le bouton dans son état normal
+          testBtn.disabled = false;
+          testBtn.textContent = 'Tester la connexion';
+      });
 }
 
 function updateConnectionStatus(status) {

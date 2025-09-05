@@ -154,17 +154,28 @@
                     <div class="card__header">
                         <h2>Configuration</h2>
                     </div>
-                    <div class="card__body">
+                    <div class="card__body">                        
                         <div class="form-group">
                             <label class="form-label" for="clockIp">IP de l'horloge Awtrix3</label>
                             <input 
                                 type="text" 
                                 class="form-control" 
                                 id="clockIp" 
-                                placeholder="192.168.0.84"
+                                placeholder="https://my-ulanzi.duckdns.org"
                                 pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
                             >
-                            <small class="form-help">Format: 192.168.0.84</small>
+                            <small class="form-help">Format: https://my-ulanzi.duckdns.org</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="login" class="form-label">Login</label>
+                            <input type="text" id="login" class="form-control" placeholder="Entrer le login">
+                            <small class="form-help">Login pour l'authentification Basic Auth</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="password" class="form-label">Mot de passe</label>
+                            <input type="password" id="password" class="form-control" placeholder="Entrer le mot de passe">
+                            <small class="form-help">Mot de passe pour l'authentification Basic Auth</small>
                         </div>
                         <div class="form-actions">
                             <button class="btn btn--outline btn--full-width" id="testConnectionBtn">
